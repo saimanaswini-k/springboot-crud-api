@@ -4,10 +4,10 @@
 	<modelVersion>4.0.0</modelVersion>
 	
 	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
+	<artifactId>springboot-crud-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>demo</name>
-	<description>Demo project for Spring Boot</description>
+	<name>springboot-crud-api</name>
+	<description>Spring Boot CRUD API for Dataset Management</description>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -44,6 +44,34 @@
         
         <!-- Spring Boot 2.7.x already includes the correct javax.persistence dependency -->
         <!-- through the spring-boot-starter-data-jpa dependency -->
+        
+        <!-- H2 Database for testing -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        
+        <!-- PostgreSQL driver -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        
+        <!-- Hibernate Types for JSON support -->
+        <dependency>
+            <groupId>com.vladmihalcea</groupId>
+            <artifactId>hibernate-types-52</artifactId>
+            <version>2.16.2</version>
+        </dependency>
+        
+        <!-- Lombok for reducing boilerplate code -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
 
 
 
