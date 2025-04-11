@@ -152,6 +152,40 @@ public class DatasetControllerTest {
     }
 
     @Test
+    public void testCreateDataset_MissingDatasetId() throws Exception {
+        // Create request payload with missing dataset_id field
+        String requestJson = "{"
+                + "\"id\": \"api.datasets.create\","
+                + "\"ver\": \"v1\","
+                + "\"ts\": \"2024-04-10T16:10:50+05:30\","
+                + "\"params\": {"
+                + "\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\""
+                + "},"
+                + "\"request\": {"
+                + "\"name\": \"Test Dataset\","
+                + "\"type\": \"test\","
+                + "\"status\": \"Live\","
+                + "\"data_version\": 1"
+                + "}"
+                + "}";
+
+        // Perform request and verify response
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.id", is("api.datasets.create")))
+                .andExpect(jsonPath("$.ver", is("v1")))
+                .andExpect(jsonPath("$.params.status", is("ERROR")))
+                .andExpect(jsonPath("$.params.err", is("MANDATORY_PARAMETER_MISSING")))
+                .andExpect(jsonPath("$.params.errmsg", containsString("dataset_id")))
+                .andExpect(jsonPath("$.responseCode", is("BAD_REQUEST")));
+                
+        // Verify service method was never called since validation happens before
+        verify(datasetService, never()).saveDataset(any(Dataset.class));
+    }
+
+    @Test
     public void testCreateDataset_ValidationError() throws Exception {
         // 1. Setup mock to throw validation error
         when(datasetService.saveDataset(any(Dataset.class)))
@@ -285,6 +319,40 @@ public class DatasetControllerTest {
         verify(datasetService, never()).updateDataset(anyString(), anyString(), any(Dataset.class));
     }
 
+    @Test
+    public void testUpdateDataset_MissingDatasetId() throws Exception {
+        // Create request payload with missing dataset_id field
+        String requestJson = "{"
+                + "\"id\": \"api.datasets.update\","
+                + "\"ver\": \"v1\","
+                + "\"ts\": \"2024-04-10T16:10:50+05:30\","
+                + "\"params\": {"
+                + "\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\""
+                + "},"
+                + "\"request\": {"
+                + "\"name\": \"Updated Dataset\","
+                + "\"type\": \"test\","
+                + "\"version_key\": \"test-uuid-1\""
+                + "}"
+                + "}";
+
+        // Perform request and verify response
+        mockMvc.perform(patch("/v1/datasets/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.id", is("api.datasets.update")))
+                .andExpect(jsonPath("$.ver", is("v1")))
+                .andExpect(jsonPath("$.params.status", is("ERROR")))
+                .andExpect(jsonPath("$.params.err", is("MANDATORY_PARAMETER_MISSING")))
+                .andExpect(jsonPath("$.params.errmsg", containsString("dataset_id")))
+                .andExpect(jsonPath("$.responseCode", is("BAD_REQUEST")));
+                
+        // Verify service methods were never called
+        verify(datasetService, never()).getDatasetByDatasetId(anyString());
+        verify(datasetService, never()).updateDataset(anyString(), anyString(), any(Dataset.class));
+    }
+    
     @Test
     public void testUpdateDataset_NotFound() throws Exception {
         // 1. Setup mocks - dataset not found

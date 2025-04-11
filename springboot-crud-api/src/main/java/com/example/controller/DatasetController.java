@@ -79,6 +79,31 @@ public class DatasetController {
         try {
             // Parse the request body
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            
+            // First check if dataset_id is present in the request
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(requestBody);
+            com.fasterxml.jackson.databind.JsonNode requestNode = rootNode.get("request");
+            
+            if (requestNode == null || requestNode.get("dataset_id") == null || requestNode.get("dataset_id").asText().trim().isEmpty()) {
+                // Dataset ID is missing - return specific error
+                Map<String, Object> response = new HashMap<>();
+                response.put("id", "api.datasets.create");
+                response.put("ver", "v1");
+                response.put("ts", getCurrentTimestamp());
+                
+                Map<String, Object> params = new HashMap<>();
+                params.put("status", "ERROR");
+                params.put("err", "MANDATORY_PARAMETER_MISSING");
+                params.put("errmsg", "'dataset_id' is missing in the request");
+                params.put("resmsgid", UUID.randomUUID().toString());
+                
+                response.put("params", params);
+                response.put("responseCode", "BAD_REQUEST");
+                response.put("result", new HashMap<>());
+                
+                return ResponseEntity.status(400).body(response);
+            }
+            
             try {
                 // Try to parse as the complex format first
                 DatasetPostDTO.Request createRequest = mapper.readValue(requestBody, DatasetPostDTO.Request.class);
@@ -138,7 +163,22 @@ public class DatasetController {
                 if (updateRequest.getRequest() == null || 
                     updateRequest.getRequest().getDatasetId() == null || 
                     updateRequest.getRequest().getDatasetId().trim().isEmpty()) {
-                    Map<String, Object> response = createValidationErrorResponse("api.datasets.update", "Invalid request format: missing required fields");
+                    // Dataset ID is missing - return specific error
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("id", "api.datasets.update");
+                    response.put("ver", "v1");
+                    response.put("ts", getCurrentTimestamp());
+                    
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("status", "ERROR");
+                    params.put("err", "MANDATORY_PARAMETER_MISSING");
+                    params.put("errmsg", "'dataset_id' is missing in the request");
+                    params.put("resmsgid", UUID.randomUUID().toString());
+                    
+                    response.put("params", params);
+                    response.put("responseCode", "BAD_REQUEST");
+                    response.put("result", new HashMap<>());
+                    
                     return ResponseEntity.status(400).body(response);
                 }
                 
@@ -265,7 +305,11 @@ public class DatasetController {
                 
                 response.put("params", params);
                 response.put("responseCode", "OK");
-                response.put("result", Map.of("message", "Dataset deleted successfully"));
+                response.put("result", Map.of(
+                    "message", "Dataset deleted successfully",
+                    "dataset_id", datasetId,
+                    "deleted_at", getCurrentTimestamp()
+                ));
                 
                 return ResponseEntity.status(204).body(response);
             } else {
