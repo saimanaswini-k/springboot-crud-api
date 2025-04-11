@@ -2,7 +2,7 @@ A RESTful Spring Boot API for managing datasets with PostgreSQL database integra
 
 ## API Endpoints
 
-### GET /v1/datasets/read/{dataset_id}
+### **GET** - `/v1/datasets/read/{dataset_id}`
 
 Retrieves a dataset by ID.
 
@@ -10,7 +10,7 @@ Retrieves a dataset by ID.
 - 200 OK: Dataset found
 - 404 Not Found: Dataset does not exist
 
-### POST /v1/datasets/create
+### **POST** - `/v1/datasets/create`
 
 Creates a new dataset.
 
@@ -19,7 +19,7 @@ Creates a new dataset.
 - 400 Bad Request: Validation error (including missing dataset_id)
 - 409 Conflict: Dataset with same ID already exists
 
-### PATCH /v1/datasets/update
+### **PATCH** - `/v1/datasets/update`
 
 Updates an existing dataset.
 
@@ -29,7 +29,7 @@ Updates an existing dataset.
 - 404 Not Found: Dataset does not exist
 - 409 Conflict: Version conflict
 
-### DELETE /v1/datasets/delete/{dataset_id}
+### **DELETE** - `/v1/datasets/delete/{dataset_id}`
 
 Deletes a dataset by ID.
 
