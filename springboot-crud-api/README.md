@@ -56,7 +56,7 @@ This script:
 
 ### Configuration
 
-Database connection properties in `application.properties`:
+Database connection properties in `application.properties`
 
 
 ## Running the Application
@@ -65,32 +65,25 @@ Database connection properties in `application.properties`:
 
 2. Build and install the application:
 ```
-...
 mvn clean install
-...
 ```
 
 3. Start the API service by running the following command:
 ```
-...
 mvn spring-boot:run
-...
 ```
 
 ## Running Unit Tests
 
 To run the unit tests for the Dataset API service, execute the following command:
 ```
-...
 mvn clean test
-...
 ```
 
 
 
 ## Default Configurations in Application Properties:
 
-These configurations can be modified as needed to customize the behavior of the system.
 
 | Configuration           | Description                                              | Default Value    |
 |-------------------------|----------------------------------------------------------|------------------|
