@@ -95,8 +95,6 @@ These configurations can be modified as needed to customize the behavior of the 
 | Configuration           | Description                                              | Default Value    |
 |-------------------------|----------------------------------------------------------|------------------|
 | spring.datasource.url   | PostgreSQL database connection URL                        | jdbc:postgresql://localhost:5432/obsrv |
-| spring.datasource.username | Username for database connection                     | obsrv_user       |
-| spring.datasource.password | Password for database connection                     | obsrv123         |
 | server.port             | Port on which the API service runs                      | 8080             |
 | spring.jpa.hibernate.ddl-auto | Database schema update strategy                  | update           |
 | spring.jpa.show-sql     | Whether to show SQL in logs                            | true             |
