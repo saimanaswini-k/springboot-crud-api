@@ -79,12 +79,22 @@ public class DatasetController {
         try {
             // Parse the request body
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            
-            // First check if dataset_id is present in the request
             com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(requestBody);
-            com.fasterxml.jackson.databind.JsonNode requestNode = rootNode.get("request");
             
-            if (requestNode == null || requestNode.get("dataset_id") == null || requestNode.get("dataset_id").asText().trim().isEmpty()) {
+            // Check whether we have a simple or complex format
+            com.fasterxml.jackson.databind.JsonNode requestNode = rootNode.get("request");
+            String datasetId = null;
+            
+            if (requestNode != null && requestNode.has("dataset_id")) {
+                // Complex format
+                datasetId = requestNode.get("dataset_id").asText().trim();
+            } else if (rootNode.has("dataset_id")) {
+                // Simple format
+                datasetId = rootNode.get("dataset_id").asText().trim();
+            }
+            
+            // Validate dataset_id presence
+            if (datasetId == null || datasetId.isEmpty()) {
                 // Dataset ID is missing - return specific error
                 Map<String, Object> response = new HashMap<>();
                 response.put("id", "api.datasets.create");
@@ -105,11 +115,16 @@ public class DatasetController {
             }
             
             try {
-                // Try to parse as the complex format first
+                // Parse either format
                 DatasetPostDTO.Request createRequest = mapper.readValue(requestBody, DatasetPostDTO.Request.class);
                 
                 // Convert DTO to entity
                 Dataset dataset = createRequest.toEntity();
+                
+                // Make sure type is set if missing
+                if (dataset.getType() == null || dataset.getType().trim().isEmpty()) {
+                    dataset.setType("dataset"); // Default type
+                }
                 
                 // Save the dataset
                 try {
@@ -130,16 +145,10 @@ public class DatasetController {
                     throw e; // Re-throw other runtime exceptions
                 }
                 
-            } catch (RuntimeException e) {
-                if (e.getMessage().contains("validation failed")) {
-                    // Handle validation errors
-                    Map<String, Object> response = createValidationErrorResponse("api.datasets.create", e.getMessage());
-                    return ResponseEntity.status(400).body(response);
-                }
-                // Other runtime exceptions
-                e.printStackTrace();
+            } catch (Exception e) {
+                // Handle validation or parsing errors
                 Map<String, Object> response = createErrorResponse("api.datasets.create", e.getMessage());
-                return ResponseEntity.status(500).body(response);
+                return ResponseEntity.status(400).body(response);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -159,10 +168,11 @@ public class DatasetController {
             try {
                 DatasetPatchDTO.Request updateRequest = mapper.readValue(requestBody, DatasetPatchDTO.Request.class);
                 
-                // Validate request
-                if (updateRequest.getRequest() == null || 
-                    updateRequest.getRequest().getDatasetId() == null || 
-                    updateRequest.getRequest().getDatasetId().trim().isEmpty()) {
+                // Manually extract fields from the JSON for validation
+                com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(requestBody);
+                com.fasterxml.jackson.databind.JsonNode requestNode = rootNode.get("request");
+                
+                if (requestNode == null || requestNode.get("dataset_id") == null || requestNode.get("dataset_id").asText().trim().isEmpty()) {
                     // Dataset ID is missing - return specific error
                     Map<String, Object> response = new HashMap<>();
                     response.put("id", "api.datasets.update");
@@ -183,8 +193,8 @@ public class DatasetController {
                 }
                 
                 // Extract the needed fields from the request
-                String datasetId = updateRequest.getRequest().getDatasetId();
-                String versionKey = updateRequest.getRequest().getVersionKey();
+                String datasetId = requestNode.get("dataset_id").asText();
+                String versionKey = requestNode.has("version_key") ? requestNode.get("version_key").asText() : null;
                 
                 // First get the existing dataset to avoid null fields
                 Dataset existingDataset = datasetService.getDatasetByDatasetId(datasetId);
@@ -292,26 +302,32 @@ public class DatasetController {
         try {
             Dataset existingDataset = datasetService.getDatasetByDatasetId(datasetId);
             if (existingDataset != null) {
-                datasetService.deleteDataset(datasetId);
-                
-                Map<String, Object> response = new HashMap<>();
-                response.put("id", "api.datasets.delete");
-                response.put("ver", "v1");
-                response.put("ts", getCurrentTimestamp());
-                
-                Map<String, Object> params = new HashMap<>();
-                params.put("status", "SUCCESS");
-                params.put("resmsgid", UUID.randomUUID().toString());
-                
-                response.put("params", params);
-                response.put("responseCode", "OK");
-                response.put("result", Map.of(
-                    "message", "Dataset deleted successfully",
-                    "dataset_id", datasetId,
-                    "deleted_at", getCurrentTimestamp()
-                ));
-                
-                return ResponseEntity.status(204).body(response);
+                try {
+                    datasetService.deleteDataset(datasetId);
+                    
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("id", "api.datasets.delete");
+                    response.put("ver", "v1");
+                    response.put("ts", getCurrentTimestamp());
+                    
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("status", "SUCCESS");
+                    params.put("resmsgid", UUID.randomUUID().toString());
+                    
+                    response.put("params", params);
+                    response.put("responseCode", "OK");
+                    response.put("result", Map.of(
+                        "message", "Dataset deleted successfully",
+                        "dataset_id", datasetId,
+                        "deleted_at", getCurrentTimestamp()
+                    ));
+                    
+                    return ResponseEntity.status(204).body(response);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Map<String, Object> response = createErrorResponse("api.datasets.delete", "Failed to delete dataset: " + e.getMessage());
+                    return ResponseEntity.status(500).body(response);
+                }
             } else {
                 Map<String, Object> response = new HashMap<>();
                 response.put("id", "api.datasets.delete");

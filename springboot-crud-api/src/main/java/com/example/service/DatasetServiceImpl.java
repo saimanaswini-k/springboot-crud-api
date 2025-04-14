@@ -101,7 +101,15 @@ public class DatasetServiceImpl implements DatasetService {
             throw new RuntimeException("Dataset not found with id: " + datasetId);
         }
         
-        // Delete the dataset
-        datasetRepository.delete(existingDataset);
+        try {
+            // Delete the dataset
+            datasetRepository.delete(existingDataset);
+            // Verify deletion was successful
+            if (datasetRepository.existsById(existingDataset.getId())) {
+                throw new RuntimeException("Failed to delete dataset with id: " + datasetId);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Deletion failed: " + e.getMessage(), e);
+        }
     }
 }

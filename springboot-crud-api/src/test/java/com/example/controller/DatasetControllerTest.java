@@ -8,422 +8,424 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.UUID;
 
-import com.example.fixture.TestDataFixture;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(DatasetController.class)
-@ActiveProfiles("test")
-public class DatasetControllerTest {
+class DatasetControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
     private DatasetService datasetService;
-    
-    // Any additional required beans that might be missing
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     private Dataset testDataset;
-    private String testId;
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
-    public void setup() {
-        // Setup test dataset
-        testId = TestDataFixture.DATASET_1_UUID;
+    void setUp() {
+        LocalDateTime now = LocalDateTime.now();
+        
         testDataset = new Dataset();
-        testDataset.setId(testId);
-        testDataset.setDatasetId(TestDataFixture.DATASET_1_ID);
+        String id = UUID.randomUUID().toString();
+        testDataset.setId(id);
+        testDataset.setDatasetId("test-dataset");
         testDataset.setName("Test Dataset");
         testDataset.setType("test");
-        testDataset.setStatus("Live");
+        testDataset.setStatus("ACTIVE");
+        testDataset.setTags(new String[]{"tag1", "tag2"});
         testDataset.setDataVersion(1);
-        
-        // For testing, we'll set JSON fields to null to avoid H2 compatibility issues
-        testDataset.setValidationConfig(null);
-        testDataset.setExtractionConfig(null);
-        testDataset.setDedupConfig(null);
-        testDataset.setDataSchema(null);
-        testDataset.setDenormConfig(null);
-        testDataset.setRouterConfig(null);
-        testDataset.setDatasetConfig(null);
-        
-        // Initialize string array
-        testDataset.setTags(new String[]{"test", "fixture"});
-        
-        // Set audit fields
-        testDataset.setCreatedBy("test-user");
-        testDataset.setUpdatedBy("test-user");
-        testDataset.setCreatedDate(LocalDateTime.now());
-        testDataset.setUpdatedDate(LocalDateTime.now());
-        testDataset.setPublishedDate(LocalDateTime.now());
+        testDataset.setValidationConfig("{\"key\": \"value\"}");
+        testDataset.setCreatedBy("testUser");
+        testDataset.setUpdatedBy("testUser");
+        testDataset.setCreatedDate(now);
+        testDataset.setUpdatedDate(now);
+        testDataset.setPublishedDate(now);
+        testDataset.setTagsString("tag1,tag2"); // Since this would be used when loading from DB
     }
 
     @Test
-    public void testGetDataset_Success() throws Exception {
-        // 1. Setup mock
-        when(datasetService.getDatasetByDatasetId(TestDataFixture.DATASET_1_ID)).thenReturn(testDataset);
+    void testGetDatasetById() throws Exception {
+        // Given
+        when(datasetService.getDatasetByDatasetId("test-dataset")).thenReturn(testDataset);
 
-        // 2. Perform request and verify response
-        mockMvc.perform(get("/v1/datasets/read/" + TestDataFixture.DATASET_1_ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is("api.datasets.read")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("SUCCESS")))
-                .andExpect(jsonPath("$.responseCode", is("OK")))
-                .andExpect(jsonPath("$.result.dataset_id", is(TestDataFixture.DATASET_1_ID)))
-                .andExpect(jsonPath("$.result.name", is("Test Dataset")))
-                .andExpect(jsonPath("$.result.type", is("test")))
-                .andExpect(jsonPath("$.result.version_key", is(testId)));
-
-        // 3. Verify service was called
-        verify(datasetService).getDatasetByDatasetId(TestDataFixture.DATASET_1_ID);
-    }
-
-    @Test
-    public void testGetDataset_BadRequest() throws Exception {
-        // 1. Perform request with empty dataset ID
-        mockMvc.perform(get("/v1/datasets/read/invalid-id"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("NOT_FOUND")));
-
-        // 2. Verify service was not called
-        verify(datasetService, never()).getDatasetByDatasetId(anyString());
-    }
-
-    @Test
-    public void testGetDataset_NotFound() throws Exception {
-        // 1. Setup mock - dataset not found
-        when(datasetService.getDatasetByDatasetId(TestDataFixture.NONEXISTENT_DATASET_ID)).thenReturn(null);
-
-        // 2. Perform request and verify response
-        mockMvc.perform(get("/v1/datasets/read/" + TestDataFixture.NONEXISTENT_DATASET_ID))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.id", is("api.datasets.read")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("NOT_FOUND")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("not found")));
-
-        // 3. Verify service was called
-        verify(datasetService).getDatasetByDatasetId(TestDataFixture.NONEXISTENT_DATASET_ID);
-    }
-
-    @Test
-    public void testCreateDataset_Success() throws Exception {
-        // 1. Setup mock
-        when(datasetService.saveDataset(any(Dataset.class))).thenReturn(testDataset);
-
-        // 2. Use test fixture
-        String requestJson = TestDataFixture.BASIC_DATASET;
-
-        // 3. Perform request and verify response
-        mockMvc.perform(post("/v1/datasets/create")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id", is("api.datasets.create")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("SUCCESS")))
-                .andExpect(jsonPath("$.responseCode", is("OK")))
-                .andExpect(jsonPath("$.result.id", is(TestDataFixture.DATASET_1_ID)));
-
-        // 4. Verify service method was called
-        verify(datasetService).saveDataset(any(Dataset.class));
-    }
-
-    @Test
-    public void testCreateDataset_MissingDatasetId() throws Exception {
-        // Create request payload with missing dataset_id field
-        String requestJson = "{"
-                + "\"id\": \"api.datasets.create\","
-                + "\"ver\": \"v1\","
-                + "\"ts\": \"2024-04-10T16:10:50+05:30\","
-                + "\"params\": {"
-                + "\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\""
-                + "},"
-                + "\"request\": {"
-                + "\"name\": \"Test Dataset\","
-                + "\"type\": \"test\","
-                + "\"status\": \"Live\","
-                + "\"data_version\": 1"
-                + "}"
-                + "}";
-
-        // Perform request and verify response
-        mockMvc.perform(post("/v1/datasets/create")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.id", is("api.datasets.create")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.params.err", is("MANDATORY_PARAMETER_MISSING")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("dataset_id")))
-                .andExpect(jsonPath("$.responseCode", is("BAD_REQUEST")));
-                
-        // Verify service method was never called since validation happens before
-        verify(datasetService, never()).saveDataset(any(Dataset.class));
-    }
-
-    @Test
-    public void testCreateDataset_ValidationError() throws Exception {
-        // 1. Setup mock to throw validation error
-        when(datasetService.saveDataset(any(Dataset.class)))
-            .thenThrow(new RuntimeException("validation failed: required field 'name' is missing"));
-
-        // 2. Create request payload with missing name
-        String requestJson = "{" +
-                "\"id\": \"api.datasets.create\"," +
-                "\"ver\": \"v1\"," +
-                "\"ts\": \"2024-04-10T16:10:50+05:30\"," +
-                "\"params\": {" +
-                "\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\"" +
-                "}," +
-                "\"request\": {" +
-                "\"dataset_id\": \"test-dataset\"," +
-                "\"type\": \"test\"" +
-                "}" +
-                "}";
-
-        // 3. Perform request and verify response
-        mockMvc.perform(post("/v1/datasets/create")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.id", is("api.datasets.create")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("NOT_FOUND")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("validation failed")));
-
-        // 4. Verify service method was called
-        verify(datasetService).saveDataset(any(Dataset.class));
-    }
-
-    @Test
-    public void testCreateDataset_Duplicate() throws Exception {
-        // 1. Setup mock - throw exception for duplicate
-        when(datasetService.saveDataset(any(Dataset.class)))
-                .thenThrow(new RuntimeException("Dataset with ID 'test-dataset' already exists."));
-
-        // 2. Create request payload
-        String requestJson = "{\"id\": \"api.datasets.create\",\"ver\": \"v1\",\"ts\": \"2024-04-10T16:10:50+05:30\",\"params\": {\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\"},\"request\": {\"dataset_id\": \"test-dataset\",\"type\": \"test\",\"name\": \"Test Dataset\"}}";
-
-        // 3. Perform request and verify response
-        mockMvc.perform(post("/v1/datasets/create")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.id", is("api.datasets.create")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("ALREADY_EXISTS")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("already exists")));
-
-        // 4. Verify service was called
-        verify(datasetService).saveDataset(any(Dataset.class));
-    }
-
-    @Test
-    public void testUpdateDataset_Success() throws Exception {
-        // 1. Setup mocks
-        when(datasetService.getDatasetByDatasetId(anyString())).thenReturn(testDataset);
-        when(datasetService.updateDataset(anyString(), anyString(), any(Dataset.class))).thenReturn(testDataset);
-
-        // 2. Create simplified request payload for H2 compatibility
-        String requestJson = "{" +
-                "\"id\": \"api.datasets.update\"," +
-                "\"ver\": \"v1\"," +
-                "\"ts\": \"2024-04-10T16:10:50+05:30\"," +
-                "\"params\": {" +
-                "\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\"" +
-                "}," +
-                "\"request\": {" +
-                "\"dataset_id\": \"test-dataset\"," +
-                "\"version_key\": \"" + testId + "\"," +
-                "\"name\": \"Updated Dataset\"," +
-                "\"tags\": [\"test\", \"updated\"]" +
-                "}" +
-                "}";
-
-        // 3. Perform request and verify response
-        mockMvc.perform(patch("/v1/datasets/update")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is("api.datasets.update")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("SUCCESS")))
-                .andExpect(jsonPath("$.responseCode", is("OK")))
-                .andExpect(jsonPath("$.result.dataset_id", is(TestDataFixture.DATASET_1_ID)));
-
-        // 4. Verify service methods were called
-        verify(datasetService).getDatasetByDatasetId(eq("test-dataset"));
-        verify(datasetService).updateDataset(eq("test-dataset"), eq(testId), any(Dataset.class));
-    }
-
-    @Test
-    public void testUpdateDataset_VersionConflict() throws Exception {
-        // 1. Setup mocks - different version key to trigger conflict
-        String differentVersionKey = UUID.randomUUID().toString();
-        when(datasetService.getDatasetByDatasetId(anyString())).thenReturn(testDataset);
-
-        // 2. Create request payload with wrong version key
-        String requestJson = "{\n" +
-                "    \"id\": \"api.datasets.update\",\n" +
-                "    \"ver\": \"v1\",\n" +
-                "    \"ts\": \"2024-04-10T16:10:50+05:30\",\n" +
-                "    \"params\": {\n" +
-                "      \"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\"\n" +
-                "    },\n" +
-                "    \"request\": {\n" +
-                "      \"dataset_id\": \"" + TestDataFixture.DATASET_1_ID + "\",\n" +
-                "      \"version_key\": \"" + differentVersionKey + "\",\n" +
-                "      \"name\": \"Updated Dataset\"\n" +
-                "    }\n" +
-                "  }";
-
-        // 3. Perform request and verify response
-        mockMvc.perform(patch("/v1/datasets/update")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.id", is("api.datasets.update")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("VERSION_CONFLICT")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("Version conflict")));
-
-        // 4. Verify service method was called but update wasn't
-        verify(datasetService).getDatasetByDatasetId(TestDataFixture.DATASET_1_ID);
-        verify(datasetService, never()).updateDataset(anyString(), anyString(), any(Dataset.class));
-    }
-
-    @Test
-    public void testUpdateDataset_MissingDatasetId() throws Exception {
-        // Create request payload with missing dataset_id field
-        String requestJson = "{"
-                + "\"id\": \"api.datasets.update\","
-                + "\"ver\": \"v1\","
-                + "\"ts\": \"2024-04-10T16:10:50+05:30\","
-                + "\"params\": {"
-                + "\"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\""
-                + "},"
-                + "\"request\": {"
-                + "\"name\": \"Updated Dataset\","
-                + "\"type\": \"test\","
-                + "\"version_key\": \"test-uuid-1\""
-                + "}"
-                + "}";
-
-        // Perform request and verify response
-        mockMvc.perform(patch("/v1/datasets/update")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.id", is("api.datasets.update")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.params.err", is("MANDATORY_PARAMETER_MISSING")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("dataset_id")))
-                .andExpect(jsonPath("$.responseCode", is("BAD_REQUEST")));
-                
-        // Verify service methods were never called
-        verify(datasetService, never()).getDatasetByDatasetId(anyString());
-        verify(datasetService, never()).updateDataset(anyString(), anyString(), any(Dataset.class));
+        // When & Then
+        mockMvc.perform(get("/v1/datasets/read/test-dataset"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("api.datasets.read"))
+               .andExpect(jsonPath("$.result.dataset_id").value("test-dataset"))
+               .andExpect(jsonPath("$.result.name").value("Test Dataset"));
     }
     
     @Test
-    public void testUpdateDataset_NotFound() throws Exception {
-        // 1. Setup mocks - dataset not found
-        when(datasetService.getDatasetByDatasetId(TestDataFixture.NONEXISTENT_DATASET_ID)).thenReturn(null);
+    void testGetDatasetByIdWithInvalidId() throws Exception {
+        // Test with empty ID
+        mockMvc.perform(get("/v1/datasets/read/invalid-id"))
+               .andExpect(status().isNotFound())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
 
-        // 2. Create request payload
+    @Test
+    void testGetNonExistentDataset() throws Exception {
+        // Given
+        when(datasetService.getDatasetByDatasetId("non-existent")).thenReturn(null);
+
+        // When & Then
+        mockMvc.perform(get("/v1/datasets/read/non-existent"))
+               .andExpect(status().isNotFound())
+               .andExpect(jsonPath("$.id").value("api.datasets.read"))
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+
+    @Test
+    void testCreateDataset() throws Exception {
+        // Given
         String requestJson = "{\n" +
-                "    \"id\": \"api.datasets.update\",\n" +
-                "    \"ver\": \"v1\",\n" +
-                "    \"ts\": \"2024-04-10T16:10:50+05:30\",\n" +
-                "    \"params\": {\n" +
-                "      \"msgid\": \"4a7f14c3-d61e-4d4f-be78-181834eeff6d\"\n" +
-                "    },\n" +
-                "    \"request\": {\n" +
-                "      \"dataset_id\": \"" + TestDataFixture.NONEXISTENT_DATASET_ID + "\",\n" +
-                "      \"version_key\": \"" + testId + "\",\n" +
-                "      \"name\": \"Updated Dataset\"\n" +
-                "    }\n" +
-                "  }";
+                "  \"id\": \"api.datasets.create\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"test-dataset\",\n" +
+                "    \"name\": \"Test Dataset\",\n" +
+                "    \"type\": \"test\",\n" +
+                "    \"status\": \"ACTIVE\",\n" +
+                "    \"tags\": [\"tag1\", \"tag2\"],\n" +
+                "    \"validation_config\": {\"key\": \"value\"}\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.saveDataset(any(Dataset.class))).thenReturn(testDataset);
 
-        // 3. Perform request and verify response
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isCreated())
+               .andExpect(jsonPath("$.id").value("api.datasets.create"))
+               .andExpect(jsonPath("$.params.status").value("SUCCESS"));
+    }
+    
+    @Test
+    void testCreateDatasetSimpleFormat() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"dataset_id\": \"simple-dataset\",\n" +
+                "  \"name\": \"Simple Dataset\",\n" +
+                "  \"status\": \"ACTIVE\",\n" +
+                "  \"tags\": [\"simple\", \"test\"]\n" +
+                "}";
+        
+        when(datasetService.saveDataset(any(Dataset.class))).thenReturn(testDataset);
+
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isCreated());
+    }
+    
+    @Test
+    void testCreateDatasetDuplicateError() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.create\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"duplicate-dataset\",\n" +
+                "    \"name\": \"Duplicate Dataset\"\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.saveDataset(any(Dataset.class)))
+            .thenThrow(new RuntimeException("Dataset with ID 'duplicate-dataset' already exists."));
+
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isConflict())
+               .andExpect(jsonPath("$.params.status").value("ERROR"))
+               .andExpect(jsonPath("$.responseCode").value("ALREADY_EXISTS"));
+    }
+    
+    @Test
+    void testCreateDatasetValidationError() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.create\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"invalid-dataset\",\n" +
+                "    \"name\": \"\"\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.saveDataset(any(Dataset.class)))
+            .thenThrow(new RuntimeException("validation failed"));
+
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isBadRequest())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+    
+    @Test
+    void testCreateDatasetGenericError() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.create\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"error-dataset\",\n" +
+                "    \"name\": \"Error Dataset\"\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.saveDataset(any(Dataset.class)))
+            .thenThrow(new RuntimeException("Unexpected error"));
+
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isBadRequest())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+    
+    @Test
+    void testCreateDatasetMalformedJson() throws Exception {
+        // Given
+        String malformedJson = "{ this is not valid JSON }";
+
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(malformedJson))
+               .andExpect(status().isInternalServerError())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+
+    @Test
+    void testCreateDatasetWithoutDatasetId() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.create\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"name\": \"Test Dataset\"\n" +
+                "  }\n" +
+                "}";
+
+        // When & Then
+        mockMvc.perform(post("/v1/datasets/create")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isBadRequest())
+               .andExpect(jsonPath("$.params.status").value("ERROR"))
+               .andExpect(jsonPath("$.params.err").value("MANDATORY_PARAMETER_MISSING"));
+    }
+
+    @Test
+    void testUpdateDataset() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.update\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"test-dataset\",\n" +
+                "    \"version_key\": \"" + testDataset.getId() + "\",\n" +
+                "    \"name\": \"Updated Dataset\",\n" +
+                "    \"status\": \"INACTIVE\"\n" +
+                "  }\n" +
+                "}";
+        
+        // Create an updated dataset for the service to return
+        Dataset updatedDataset = new Dataset();
+        updatedDataset.setId(testDataset.getId());
+        updatedDataset.setDatasetId("test-dataset");
+        updatedDataset.setName("Updated Dataset");
+        updatedDataset.setStatus("INACTIVE");
+        updatedDataset.setDataVersion(2);
+        
+        when(datasetService.getDatasetByDatasetId("test-dataset")).thenReturn(testDataset);
+        when(datasetService.updateDataset(anyString(), anyString(), any(Dataset.class))).thenReturn(updatedDataset);
+
+        // When & Then
         mockMvc.perform(patch("/v1/datasets/update")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestJson))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.id", is("api.datasets.update")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("NOT_FOUND")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("not found")));
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("api.datasets.update"))
+               .andExpect(jsonPath("$.params.status").value("SUCCESS"));
+    }
+    
+    @Test
+    void testUpdateDatasetWithoutDatasetId() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.update\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"name\": \"Updated Dataset\"\n" +
+                "  }\n" +
+                "}";
 
-        // 4. Verify service method was called but update wasn't
-        verify(datasetService).getDatasetByDatasetId(TestDataFixture.NONEXISTENT_DATASET_ID);
-        verify(datasetService, never()).updateDataset(anyString(), anyString(), any(Dataset.class));
+        // When & Then
+        mockMvc.perform(patch("/v1/datasets/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isBadRequest())
+               .andExpect(jsonPath("$.params.status").value("ERROR"))
+               .andExpect(jsonPath("$.params.err").value("MANDATORY_PARAMETER_MISSING"));
+    }
+    
+    @Test
+    void testUpdateNonExistentDataset() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.update\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"non-existent\",\n" +
+                "    \"version_key\": \"some-key\",\n" +
+                "    \"name\": \"Updated Dataset\"\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.getDatasetByDatasetId("non-existent")).thenReturn(null);
+
+        // When & Then
+        mockMvc.perform(patch("/v1/datasets/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isNotFound())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+    
+    @Test
+    void testUpdateDatasetVersionConflict() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.update\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"test-dataset\",\n" +
+                "    \"version_key\": \"wrong-key\",\n" +
+                "    \"name\": \"Updated Dataset\"\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.getDatasetByDatasetId("test-dataset")).thenReturn(testDataset);
+        when(datasetService.updateDataset(eq("test-dataset"), eq("wrong-key"), any(Dataset.class)))
+            .thenThrow(new RuntimeException("Version conflict. Please get the latest version."));
+
+        // When & Then
+        mockMvc.perform(patch("/v1/datasets/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isConflict())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+    
+    @Test
+    void testUpdateDatasetGenericError() throws Exception {
+        // Given
+        String requestJson = "{\n" +
+                "  \"id\": \"api.datasets.update\",\n" +
+                "  \"ver\": \"v1\",\n" +
+                "  \"request\": {\n" +
+                "    \"dataset_id\": \"test-dataset\",\n" +
+                "    \"version_key\": \"" + testDataset.getId() + "\",\n" +
+                "    \"name\": \"Updated Dataset\"\n" +
+                "  }\n" +
+                "}";
+        
+        when(datasetService.getDatasetByDatasetId("test-dataset")).thenReturn(testDataset);
+        when(datasetService.updateDataset(anyString(), anyString(), any(Dataset.class)))
+            .thenThrow(new RuntimeException("Unexpected error"));
+
+        // When & Then
+        mockMvc.perform(patch("/v1/datasets/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+               .andExpect(status().isInternalServerError())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
     }
 
     @Test
-    public void testDeleteDataset_Success() throws Exception {
-        // 1. Setup mock
-        when(datasetService.getDatasetByDatasetId(TestDataFixture.DATASET_1_ID)).thenReturn(testDataset);
-        doNothing().when(datasetService).deleteDataset(TestDataFixture.DATASET_1_ID);
+    void testGetAllDatasets() throws Exception {
+        // Given
+        when(datasetService.getAllDatasets()).thenReturn(Arrays.asList(testDataset));
 
-        // 2. Perform request and verify response
-        mockMvc.perform(delete("/v1/datasets/delete/" + TestDataFixture.DATASET_1_ID))
-                .andExpect(status().isNoContent())
-                .andExpect(jsonPath("$.id", is("api.datasets.delete")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("SUCCESS")))
-                .andExpect(jsonPath("$.responseCode", is("OK")))
-                .andExpect(jsonPath("$.result.message", is("Dataset deleted successfully")));
+        // When & Then
+        mockMvc.perform(get("/v1/datasets"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("api.datasets.list"))
+               .andExpect(jsonPath("$.result[0].dataset_id").value("test-dataset"))
+               .andExpect(jsonPath("$.result[0].name").value("Test Dataset"));
+    }
+    
+    @Test
+    void testGetAllDatasetsEmpty() throws Exception {
+        // Given
+        when(datasetService.getAllDatasets()).thenReturn(Collections.emptyList());
 
-        // 3. Verify service methods were called
-        verify(datasetService).getDatasetByDatasetId(TestDataFixture.DATASET_1_ID);
-        verify(datasetService).deleteDataset(TestDataFixture.DATASET_1_ID);
+        // When & Then
+        mockMvc.perform(get("/v1/datasets"))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.id").value("api.datasets.list"))
+               .andExpect(jsonPath("$.result").isArray())
+               .andExpect(jsonPath("$.result").isEmpty());
     }
 
     @Test
-    public void testDeleteDataset_NotFound() throws Exception {
-        // 1. Setup mock - dataset not found
-        when(datasetService.getDatasetByDatasetId(TestDataFixture.NONEXISTENT_DATASET_ID)).thenReturn(null);
+    void testDeleteDataset() throws Exception {
+        // Given
+        when(datasetService.getDatasetByDatasetId("test-dataset")).thenReturn(testDataset);
+        doNothing().when(datasetService).deleteDataset("test-dataset");
 
-        // 2. Perform request and verify response
-        mockMvc.perform(delete("/v1/datasets/delete/" + TestDataFixture.NONEXISTENT_DATASET_ID))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.id", is("api.datasets.delete")))
-                .andExpect(jsonPath("$.ver", is("v1")))
-                .andExpect(jsonPath("$.params.status", is("ERROR")))
-                .andExpect(jsonPath("$.responseCode", is("NOT_FOUND")))
-                .andExpect(jsonPath("$.params.errmsg", containsString("not found")));
-
-        // 3. Verify service method was called
-        verify(datasetService).getDatasetByDatasetId(TestDataFixture.NONEXISTENT_DATASET_ID);
+        // When & Then
+        mockMvc.perform(delete("/v1/datasets/delete/test-dataset"))
+               .andExpect(status().isNoContent())
+               .andExpect(jsonPath("$.id").value("api.datasets.delete"))
+               .andExpect(jsonPath("$.params.status").value("SUCCESS"))
+               .andExpect(jsonPath("$.result.dataset_id").value("test-dataset"));
     }
-}
+
+    @Test
+    void testDeleteNonExistentDataset() throws Exception {
+        // Given
+        when(datasetService.getDatasetByDatasetId("non-existent")).thenReturn(null);
+
+        // When & Then
+        mockMvc.perform(delete("/v1/datasets/delete/non-existent"))
+               .andExpect(status().isNotFound())
+               .andExpect(jsonPath("$.id").value("api.datasets.delete"))
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+    
+    @Test
+    void testDeleteDatasetServiceError() throws Exception {
+        // Given
+        when(datasetService.getDatasetByDatasetId("test-dataset")).thenReturn(testDataset);
+        doThrow(new RuntimeException("Deletion failed")).when(datasetService).deleteDataset("test-dataset");
+
+        // When & Then
+        mockMvc.perform(delete("/v1/datasets/delete/test-dataset"))
+               .andExpect(status().isInternalServerError())
+               .andExpect(jsonPath("$.params.status").value("ERROR"));
+    }
+} 

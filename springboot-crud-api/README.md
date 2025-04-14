@@ -39,25 +39,32 @@ Deletes a dataset by ID.
 
 ## Database Setup
 
-The application uses PostgreSQL for production and H2 in-memory database for testing.
+The application uses PostgreSQL for both production and testing environments.
 
 ### PostgreSQL Setup
 
-1. Run the provided setup script:
+1. Run the provided setup script for production:
 ```bash
 psql -U postgres -f src/main/resources/db/setup.sql
 ```
 
-This script:
-- Creates the database user
-- Creates the database
-- Sets up permissions
-- Creates the datasets table
+2. Create a test database if running tests:
+```bash
+psql -U postgres -c "CREATE DATABASE obsrv_test;"
+psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE obsrv_test TO obsrv_user;"
+```
+
+These scripts:
+- Create the database users
+- Create the databases
+- Set up permissions
+- Create the datasets tables
 
 ### Configuration
 
-Database connection properties in `application.properties`
-
+Database connection properties in:
+- `application.properties` (production)
+- `application-test.properties` (testing)
 
 ## Running the Application
 
@@ -73,17 +80,44 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-## Running Unit Tests
+## Testing
+
+### Running Unit Tests
 
 To run the unit tests for the Dataset API service, execute the following command:
-```
+```bash
 mvn clean test
 ```
 
+The project includes comprehensive tests covering:
 
+- **Entity Tests**: JSON field handling, tag array conversion, entity creation
+- **Repository Tests**: Dataset retrieval, field handling, database interactions
+- **Service Tests**: CRUD operations (create, read, update, delete, list)
+- **Controller Tests**: API endpoints, error handling, validation
+- **DTO Tests**: Entity-to-DTO conversion
+- **Integration Tests**: Full CRUD lifecycle testing
+
+### Test Coverage
+
+The project uses JaCoCo for test coverage reporting:
+
+1. Run tests with coverage report:
+```bash
+mvn clean test jacoco:report
+```
+
+2. To view the coverage report, open:
+```
+target/site/jacoco/index.html
+```
+
+3. Run with coverage verification (requires >70% coverage):
+```bash
+mvn clean verify
+```
 
 ## Default Configurations in Application Properties:
-
 
 | Configuration           | Description                                              | Default Value    |
 |-------------------------|----------------------------------------------------------|------------------|
@@ -94,10 +128,11 @@ mvn clean test
 
 ## Tech Stack
 
-- Java 11
-- Spring Boot 2.7.x
+- Java 17
+- Spring Boot 3.4.4
 - Spring Data JPA
 - PostgreSQL
-- H2 (for testing)
 - Lombok (reducing boilerplate)
 - Hibernate Types
+- JUnit 5 (testing)
+- JaCoCo (test coverage)

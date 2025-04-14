@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -31,45 +32,7 @@ public class DatasetPatchDTO {
         private String ts;
         private Map<String, Object> params;
         
-        private RequestObject request;
-        
-        @Data
-        @NoArgsConstructor
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        public static class RequestObject {
-            @JsonProperty("dataset_id")
-            private String datasetId;
-            
-            @JsonProperty("version_key")
-            private String versionKey;
-            
-            private String name;
-            private String type;
-            private String status;
-            private String[] tags;
-            
-            // Complex JSON configs
-            @JsonProperty("validation_config")
-            private Object validationConfig;
-            
-            @JsonProperty("extraction_config")
-            private Object extractionConfig;
-            
-            @JsonProperty("dedup_config")
-            private Object dedupConfig;
-            
-            @JsonProperty("data_schema")
-            private Object dataSchema;
-            
-            @JsonProperty("denorm_config")
-            private Object denormConfig;
-            
-            @JsonProperty("router_config")
-            private Object routerConfig;
-            
-            @JsonProperty("dataset_config")
-            private Object datasetConfig;
-        }
+        private JsonNode request;
         
         /**
          * Update existing dataset with values from request
@@ -79,59 +42,69 @@ public class DatasetPatchDTO {
                 return;
             }
             
+            ObjectMapper mapper = new ObjectMapper();
+            
             // Update simple fields if they're provided
-            if (this.request.getName() != null) {
-                dataset.setName(this.request.getName());
+            if (this.request.has("name")) {
+                dataset.setName(this.request.get("name").asText());
             }
             
-            if (this.request.getType() != null) {
-                dataset.setType(this.request.getType());
+            if (this.request.has("type")) {
+                dataset.setType(this.request.get("type").asText());
             }
             
-            if (this.request.getStatus() != null) {
-                dataset.setStatus(this.request.getStatus());
+            if (this.request.has("status")) {
+                dataset.setStatus(this.request.get("status").asText());
             }
             
-            if (this.request.getTags() != null) {
-                dataset.setTags(this.request.getTags());
+            if (this.request.has("tags") && !this.request.get("tags").isNull()) {
+                JsonNode tagsNode = this.request.get("tags");
+                String[] tags = new String[tagsNode.size()];
+                for (int i = 0; i < tagsNode.size(); i++) {
+                    tags[i] = tagsNode.get(i).asText();
+                }
+                dataset.setTags(tags);
             }
             
             // Update complex JSON fields if provided
-            ObjectMapper mapper = new ObjectMapper();
             try {
-                if (this.request.getValidationConfig() != null) {
-                    dataset.setValidationConfig(mapper.writeValueAsString(this.request.getValidationConfig()));
+                if (this.request.has("validation_config") && !this.request.get("validation_config").isNull()) {
+                    dataset.setValidationConfig(mapper.writeValueAsString(this.request.get("validation_config")));
                 }
                 
-                if (this.request.getExtractionConfig() != null) {
-                    dataset.setExtractionConfig(mapper.writeValueAsString(this.request.getExtractionConfig()));
+                if (this.request.has("extraction_config") && !this.request.get("extraction_config").isNull()) {
+                    dataset.setExtractionConfig(mapper.writeValueAsString(this.request.get("extraction_config")));
                 }
                 
-                if (this.request.getDedupConfig() != null) {
-                    dataset.setDedupConfig(mapper.writeValueAsString(this.request.getDedupConfig()));
+                if (this.request.has("dedup_config") && !this.request.get("dedup_config").isNull()) {
+                    dataset.setDedupConfig(mapper.writeValueAsString(this.request.get("dedup_config")));
                 }
                 
-                if (this.request.getDataSchema() != null) {
-                    dataset.setDataSchema(mapper.writeValueAsString(this.request.getDataSchema()));
+                if (this.request.has("data_schema") && !this.request.get("data_schema").isNull()) {
+                    dataset.setDataSchema(mapper.writeValueAsString(this.request.get("data_schema")));
                 }
                 
-                if (this.request.getDenormConfig() != null) {
-                    dataset.setDenormConfig(mapper.writeValueAsString(this.request.getDenormConfig()));
+                if (this.request.has("denorm_config") && !this.request.get("denorm_config").isNull()) {
+                    dataset.setDenormConfig(mapper.writeValueAsString(this.request.get("denorm_config")));
                 }
                 
-                if (this.request.getRouterConfig() != null) {
-                    dataset.setRouterConfig(mapper.writeValueAsString(this.request.getRouterConfig()));
+                if (this.request.has("router_config") && !this.request.get("router_config").isNull()) {
+                    dataset.setRouterConfig(mapper.writeValueAsString(this.request.get("router_config")));
                 }
                 
-                if (this.request.getDatasetConfig() != null) {
-                    dataset.setDatasetConfig(mapper.writeValueAsString(this.request.getDatasetConfig()));
+                if (this.request.has("dataset_config") && !this.request.get("dataset_config").isNull()) {
+                    dataset.setDatasetConfig(mapper.writeValueAsString(this.request.get("dataset_config")));
                 }
             } catch (JsonProcessingException e) {
                 throw new RuntimeException("Error processing JSON fields", e);
             }
             
             // Increment version
-            dataset.setDataVersion(dataset.getDataVersion() + 1);
+            if (dataset.getDataVersion() != null) {
+                dataset.setDataVersion(dataset.getDataVersion() + 1);
+            } else {
+                dataset.setDataVersion(1);
+            }
         }
     }
     

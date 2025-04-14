@@ -202,6 +202,8 @@ public class DatasetPostDTO {
         @JsonProperty("version_key")
         private String versionKey;
         
+        private String status = "Dataset created successfully";
+        
         public static Response fromEntity(Dataset dataset) {
             Response response = new Response();
             response.id = dataset.getDatasetId();

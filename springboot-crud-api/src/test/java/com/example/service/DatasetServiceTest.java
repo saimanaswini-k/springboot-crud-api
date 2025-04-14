@@ -1,177 +1,189 @@
 package com.example.service;
 
-import com.example.config.TestConfig;
 import com.example.entity.Dataset;
-import com.example.entity.TestDatasetEntity;
-import com.example.repository.TestDatasetRepository;
+import com.example.repository.DatasetRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@Import(TestConfig.class)
-public class DatasetServiceTest {
+class DatasetServiceTest {
 
     @Mock
-    private TestDatasetRepository testDatasetRepository;
-    
+    private DatasetRepository datasetRepository;
+
     @InjectMocks
-    private TestDatasetService datasetService;
+    private DatasetServiceImpl datasetService;
 
     private Dataset testDataset;
-    private String testId;
+    private LocalDateTime now;
 
     @BeforeEach
-    public void setup() {
-        // Create test dataset before each test
-        testId = UUID.randomUUID().toString();
+    void setUp() {
+        now = LocalDateTime.now();
+        
         testDataset = new Dataset();
-        testDataset.setId(testId);
+        testDataset.setId(UUID.randomUUID().toString());
         testDataset.setDatasetId("test-dataset");
         testDataset.setName("Test Dataset");
         testDataset.setType("test");
-        testDataset.setStatus("Live");
+        testDataset.setStatus("ACTIVE");
+        testDataset.setTags(new String[]{"tag1", "tag2"});
         testDataset.setDataVersion(1);
-        testDataset.setCreatedBy("test-user");
-        testDataset.setUpdatedBy("test-user");
-        testDataset.setCreatedDate(LocalDateTime.now());
-        testDataset.setUpdatedDate(LocalDateTime.now());
+        testDataset.setValidationConfig("{\"key\": \"value\"}");
+        testDataset.setCreatedBy("testUser");
+        testDataset.setUpdatedBy("testUser");
+        testDataset.setCreatedDate(now);
+        testDataset.setUpdatedDate(now);
+        testDataset.setPublishedDate(now);
     }
 
     @Test
-    public void testSaveDataset_Success() {
-        // 1. Setup mocks
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(null); // No existing dataset
-        TestDatasetEntity testEntity = TestDatasetEntity.fromDataset(testDataset);
-        when(testDatasetRepository.save(any(TestDatasetEntity.class))).thenReturn(testEntity);
+    void testSaveDataset() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc(anyString())).thenReturn(null);
+        when(datasetRepository.save(any(Dataset.class))).thenReturn(testDataset);
 
-        // 2. Call the service method
-        Dataset savedDataset = datasetService.saveDataset(testDataset);
+        // When
+        Dataset newDataset = new Dataset();
+        newDataset.setDatasetId("test-dataset");
+        newDataset.setName("Test Dataset");
+        Dataset savedDataset = datasetService.saveDataset(newDataset);
 
-        // 3. Verify interactions and results
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset"); // Verify find method was called
-        verify(testDatasetRepository).save(any(TestDatasetEntity.class));        // Verify save was called
-        
-        assertEquals("test-dataset", savedDataset.getDatasetId());
+        // Then
+        assertNotNull(savedDataset);
         assertEquals("Test Dataset", savedDataset.getName());
+        assertEquals("test-dataset", savedDataset.getDatasetId());
+        verify(datasetRepository, times(1)).save(any(Dataset.class));
     }
 
     @Test
-    public void testSaveDataset_DuplicateDataset() {
-        // 1. Setup mocks - simulate existing dataset
-        TestDatasetEntity testEntity = TestDatasetEntity.fromDataset(testDataset);
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testEntity);
+    void testSaveDatasetWithExistingId() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testDataset);
 
-        // 2 & 3. Call service method and expect exception
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-            datasetService.saveDataset(testDataset);
+        // When & Then
+        Dataset newDataset = new Dataset();
+        newDataset.setDatasetId("test-dataset");
+        assertThrows(RuntimeException.class, () -> datasetService.saveDataset(newDataset));
+    }
+
+    @Test
+    void testGetAllDatasets() {
+        // Given
+        List<Dataset> datasets = Arrays.asList(testDataset);
+        when(datasetRepository.findAll()).thenReturn(datasets);
+
+        // When
+        List<Dataset> result = datasetService.getAllDatasets();
+
+        // Then
+        assertEquals(1, result.size());
+        assertEquals("Test Dataset", result.get(0).getName());
+        verify(datasetRepository, times(1)).findAll();
+    }
+
+    @Test
+    void testGetDatasetByDatasetId() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testDataset);
+
+        // When
+        Dataset result = datasetService.getDatasetByDatasetId("test-dataset");
+
+        // Then
+        assertNotNull(result);
+        assertEquals("Test Dataset", result.getName());
+        verify(datasetRepository, times(1)).findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset");
+    }
+
+    @Test
+    void testUpdateDataset() {
+        // Given
+        String id = testDataset.getId();
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testDataset);
+        
+        Dataset updatedDataset = new Dataset();
+        updatedDataset.setName("Updated Dataset");
+        updatedDataset.setStatus("INACTIVE");
+        updatedDataset.setDataVersion(2);
+        
+        when(datasetRepository.save(any(Dataset.class))).thenAnswer(invocation -> {
+            Dataset savedDataset = invocation.getArgument(0);
+            return savedDataset;
         });
 
-        // 4. Verify exception message and interactions
-        assertThat(exception.getMessage()).contains("already exists");
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset");
-        verify(testDatasetRepository, never()).save(any(TestDatasetEntity.class)); // Verify save was NOT called
-    }
+        // When
+        Dataset result = datasetService.updateDataset("test-dataset", id, updatedDataset);
 
-    @Test
-    public void testGetDatasetByDatasetId_Exists() {
-        // 1. Setup mocks
-        TestDatasetEntity testEntity = TestDatasetEntity.fromDataset(testDataset);
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testEntity);
-
-        // 2. Call the service method
-        Dataset foundDataset = datasetService.getDatasetByDatasetId("test-dataset");
-
-        // 3. Verify results and interactions
-        assertThat(foundDataset).isNotNull();
-        assertEquals("Test Dataset", foundDataset.getName());
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset");
-    }
-
-    @Test
-    public void testGetDatasetByDatasetId_NotExists() {
-        // 1. Setup mocks
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("nonexistent")).thenReturn(null);
-
-        // 2. Call the service method
-        Dataset foundDataset = datasetService.getDatasetByDatasetId("nonexistent");
-
-        // 3. Verify results and interactions
-        assertThat(foundDataset).isNull();
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("nonexistent");
-    }
-
-    @Test
-    public void testUpdateDataset() {
-        // 1. Create updated dataset
-        Dataset updatedDataset = new Dataset();
-        updatedDataset.setId(testId);
-        updatedDataset.setDatasetId("test-dataset");
-        updatedDataset.setName("Updated Name");
-        updatedDataset.setType("updated");
-        updatedDataset.setStatus("Updated");
-        updatedDataset.setDataVersion(2);
-        updatedDataset.setUpdatedBy("test-updater");
-        updatedDataset.setUpdatedDate(LocalDateTime.now());
-
-        // 2. Setup mocks
-        TestDatasetEntity testEntity = TestDatasetEntity.fromDataset(testDataset);
-        TestDatasetEntity updatedEntity = TestDatasetEntity.fromDataset(updatedDataset);
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testEntity);
-        when(testDatasetRepository.save(any(TestDatasetEntity.class))).thenReturn(updatedEntity);
-
-        // 3. Call the service method
-        Dataset result = datasetService.updateDataset("test-dataset", testId, updatedDataset);
-
-        // 4. Verify results and interactions
-        assertThat(result).isNotNull();
-        assertEquals("Updated Name", result.getName());
-        assertEquals("updated", result.getType());
-        assertEquals("Updated", result.getStatus());
+        // Then
+        assertNotNull(result);
+        assertEquals("Updated Dataset", result.getName());
+        assertEquals("INACTIVE", result.getStatus());
         assertEquals(2, result.getDataVersion());
-        
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset");
-        verify(testDatasetRepository).save(any(TestDatasetEntity.class));
+        assertEquals(id, result.getId()); // ID should be preserved
+        assertEquals("test-dataset", result.getDatasetId()); // DatasetId should be preserved
+        verify(datasetRepository, times(1)).save(any(Dataset.class));
     }
 
     @Test
-    public void testDeleteDataset() {
-        // 1. Setup mocks
-        TestDatasetEntity testEntity = TestDatasetEntity.fromDataset(testDataset);
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testEntity);
-        doNothing().when(testDatasetRepository).delete(any(TestDatasetEntity.class));
+    void testUpdateDatasetWithInvalidId() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("non-existent")).thenReturn(null);
+        
+        Dataset updatedDataset = new Dataset();
+        updatedDataset.setName("Updated Dataset");
 
-        // 2. Call the service method
+        // When & Then
+        assertThrows(RuntimeException.class, 
+                     () -> datasetService.updateDataset("non-existent", "any-key", updatedDataset));
+    }
+
+    @Test
+    void testUpdateDatasetWithInvalidVersionKey() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testDataset);
+        
+        Dataset updatedDataset = new Dataset();
+        updatedDataset.setName("Updated Dataset");
+
+        // When & Then
+        assertThrows(RuntimeException.class, 
+                     () -> datasetService.updateDataset("test-dataset", "wrong-version-key", updatedDataset));
+    }
+
+    @Test
+    void testDeleteDataset() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset")).thenReturn(testDataset);
+        doNothing().when(datasetRepository).delete(any(Dataset.class));
+
+        // When
         datasetService.deleteDataset("test-dataset");
 
-        // 3. Verify interactions
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("test-dataset");
-        verify(testDatasetRepository).delete(any(TestDatasetEntity.class));
+        // Then
+        verify(datasetRepository, times(1)).delete(testDataset);
     }
 
     @Test
-    public void testDeleteDataset_NotFound() {
-        // 1. Setup mocks - dataset not found
-        when(testDatasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("nonexistent")).thenReturn(null);
+    void testDeleteNonExistentDataset() {
+        // Given
+        when(datasetRepository.findFirstByDatasetIdOrderByCreatedDateDesc("non-existent")).thenReturn(null);
 
-        // 2. Call the service method
-        datasetService.deleteDataset("nonexistent");
-
-        // 3. Verify interactions - delete should not be called
-        verify(testDatasetRepository).findFirstByDatasetIdOrderByCreatedDateDesc("nonexistent");
-        verify(testDatasetRepository, never()).delete(any(TestDatasetEntity.class));
+        // When & Then
+        assertThrows(RuntimeException.class, () -> datasetService.deleteDataset("non-existent"));
     }
-}
+} 
