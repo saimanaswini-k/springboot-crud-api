@@ -63,7 +63,7 @@ These scripts:
 ### Configuration
 
 Database connection properties in:
-- `application.properties` (production)
+- `application.properties` 
 - `application-test.properties` (testing)
 
 ## Running the Application
